@@ -1,0 +1,104 @@
+name: Validate Apps
+
+on:
+  push:
+    branches: [master, main]
+  pull_request:
+    branches: [master, main]
+
+jobs:
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install pyyaml jsonschema
+
+      - name: Validate YAML files
+        run: |
+          python -c "
+          import yaml
+          import sys
+          from pathlib import Path
+
+          errors = []
+          required_fields = ['id', 'name', 'description', 'version', 'category', 'docker']
+          valid_categories = ['media', 'networking', 'monitoring', 'security', 'storage', 'utility']
+
+          for yaml_file in Path('apps').rglob('app.yaml'):
+              try:
+                  with open(yaml_file) as f:
+                      data = yaml.safe_load(f)
+
+                  # Check required fields
+                  for field in required_fields:
+                      if field not in data:
+                          errors.append(f'{yaml_file}: Missing required field: {field}')
+
+                  # Validate category
+                  if 'category' in data and data['category'] not in valid_categories:
+                      errors.append(f'{yaml_file}: Invalid category: {data[\"category\"]}')
+
+                  # Check docker image
+                  if 'docker' in data and 'image' not in data['docker']:
+                      errors.append(f'{yaml_file}: Missing docker.image')
+
+                  # Check for secrets
+                  content = yaml_file.read_text().lower()
+                  if 'password' in content or 'secret' in content or 'api_key' in content:
+                      errors.append(f'{yaml_file}: Possible hardcoded secret detected')
+
+              except yaml.YAMLError as e:
+                  errors.append(f'{yaml_file}: Invalid YAML: {e}')
+
+          if errors:
+              for error in errors:
+                  print(f'ERROR: {error}')
+              sys.exit(1)
+          else:
+              print('All app definitions are valid!')
+          "
+
+  security-scan:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for secrets
+        run: |
+          # Simple secret detection
+          if grep -rE "(password|secret|api_key|token)\s*[:=]\s*['\"][^'\"]+['\"]" apps/ --include="*.yaml" --include="*.yml"; then
+            echo "WARNING: Possible secrets detected in app definitions"
+            exit 1
+          fi
+          echo "No obvious secrets found"
+
+      - name: Validate Docker images
+        run: |
+          python3 -c "
+          import yaml
+          import sys
+          from pathlib import Path
+
+          warnings = []
+          for yaml_file in Path('apps').rglob('app.yaml'):
+              try:
+                  with open(yaml_file) as f:
+                      data = yaml.safe_load(f)
+                  if 'docker' in data and 'image' in data['docker']:
+                      image = data['docker']['image']
+                      if ':latest' in image or ':' not in image:
+                          warnings.append(f'{yaml_file}: Image uses latest or untagged version: {image}')
+              except:
+                  pass
+
+          for warning in warnings:
+              print(f'WARNING: {warning}')
+          "

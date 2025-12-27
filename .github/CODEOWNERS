@@ -1,0 +1,6 @@
+# Default owners for everything
+* @cbabil
+
+# Security-related files require owner review
+SECURITY.md @cbabil
+.github/workflows/ @cbabil
