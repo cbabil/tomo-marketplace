@@ -54,10 +54,10 @@ jobs:
                   if 'docker' in data and 'environment' in data['docker']:
                       for env in data['docker']['environment']:
                           name = env.get('name', '').lower()
-                          value = env.get('value', '')
-                          # Flag if secret-related var has a non-empty, non-placeholder value
+                          value = str(env.get('value', ''))
+                          # Flag if secret-related var has a non-empty value (empty string is OK)
                           if any(kw in name for kw in ['password', 'secret', 'api_key', 'token']):
-                              if value and value not in ['', '${' + env.get('name', '') + '}']:
+                              if len(value) > 0:
                                   errors.append(f'{yaml_file}: Possible hardcoded secret in {env.get(\"name\")}')
 
               except yaml.YAMLError as e:
