@@ -1,0 +1,372 @@
+name: Security Scan
+
+on:
+  pull_request:
+    branches: [master, main]
+    paths:
+      - 'apps/**/app.yaml'
+      - 'manifest.json'
+
+jobs:
+  scan-images:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Trivy
+        run: |
+          sudo apt-get install -y wget apt-transport-https gnupg lsb-release
+          wget -qO - https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo apt-key add -
+          echo deb https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -sc) main | sudo tee -a /etc/apt/sources.list.d/trivy.list
+          sudo apt-get update
+          sudo apt-get install -y trivy
+
+      - name: Scan Docker images for vulnerabilities
+        run: |
+          python3 << 'EOF'
+          import yaml
+          import subprocess
+          import sys
+          import json
+          from pathlib import Path
+
+          errors = []
+          warnings = []
+          scanned = 0
+
+          # Trusted registries (images must be from these)
+          TRUSTED_REGISTRIES = [
+              '',  # Docker Hub (no prefix)
+              'docker.io/',
+              'ghcr.io/',
+              'lscr.io/',  # LinuxServer
+              'quay.io/',
+              'gcr.io/',
+              'mcr.microsoft.com/',
+          ]
+
+          # Blocked registries (known malicious or untrusted)
+          BLOCKED_REGISTRIES = [
+              'docker.pkg.github.com',  # Deprecated
+          ]
+
+          for yaml_file in sorted(Path('apps').rglob('app.yaml')):
+              try:
+                  with open(yaml_file) as f:
+                      data = yaml.safe_load(f)
+
+                  if 'docker' not in data or 'image' not in data['docker']:
+                      continue
+
+                  image = data['docker']['image']
+                  app_id = data.get('id', 'unknown')
+
+                  # Check blocked registries
+                  for blocked in BLOCKED_REGISTRIES:
+                      if blocked in image:
+                          errors.append(f'{app_id}: Image from blocked registry: {image}')
+                          continue
+
+                  # Check trusted registries
+                  is_trusted = False
+                  for trusted in TRUSTED_REGISTRIES:
+                      if trusted == '' and '/' in image and '.' not in image.split('/')[0]:
+                          # Docker Hub official or user image (no registry prefix)
+                          is_trusted = True
+                          break
+                      elif image.startswith(trusted):
+                          is_trusted = True
+                          break
+
+                  if not is_trusted:
+                      errors.append(f'{app_id}: Image not from trusted registry: {image}')
+                      continue
+
+                  print(f'Scanning {app_id}: {image}...')
+                  scanned += 1
+
+                  # Run Trivy scan
+                  result = subprocess.run(
+                      ['trivy', 'image', '--severity', 'CRITICAL,HIGH', '--format', 'json', '--quiet', image],
+                      capture_output=True,
+                      text=True,
+                      timeout=300
+                  )
+
+                  if result.returncode != 0:
+                      # Image might not exist or be accessible
+                      warnings.append(f'{app_id}: Could not scan image (may not exist): {image}')
+                      continue
+
+                  try:
+                      scan_result = json.loads(result.stdout)
+                      vulns = []
+                      for res in scan_result.get('Results', []):
+                          for vuln in res.get('Vulnerabilities', []):
+                              if vuln.get('Severity') in ['CRITICAL', 'HIGH']:
+                                  vulns.append(f"{vuln.get('VulnerabilityID')} ({vuln.get('Severity')})")
+
+                      if vulns:
+                          # Critical/High vulns are warnings (maintainers decide)
+                          warnings.append(f'{app_id}: {len(vulns)} vulnerabilities found: {", ".join(vulns[:5])}{"..." if len(vulns) > 5 else ""}')
+                      else:
+                          print(f'  ✓ No critical/high vulnerabilities')
+
+                  except json.JSONDecodeError:
+                      warnings.append(f'{app_id}: Could not parse scan results')
+
+              except Exception as e:
+                  errors.append(f'{yaml_file}: Error: {e}')
+
+          print('')
+          print(f'Scanned {scanned} images')
+
+          for warning in warnings:
+              print(f'WARNING: {warning}')
+
+          if errors:
+              print('')
+              for error in errors:
+                  print(f'ERROR: {error}')
+              sys.exit(1)
+          else:
+              print('')
+              print('Security scan passed!')
+          EOF
+
+  check-malicious-patterns:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Detect malicious patterns
+        run: |
+          python3 << 'EOF'
+          import yaml
+          import sys
+          import re
+          from pathlib import Path
+
+          errors = []
+          warnings = []
+
+          # Dangerous volume mounts that could compromise the host
+          DANGEROUS_MOUNTS = {
+              '/': 'Root filesystem - full host access',
+              '/etc': 'System configuration files',
+              '/etc/passwd': 'User database',
+              '/etc/shadow': 'Password hashes',
+              '/root': 'Root user home directory',
+              '/home': 'All user home directories',
+              '/var/log': 'System logs - potential data exfiltration',
+              '/proc': 'Process information - host introspection',
+              '/sys': 'Kernel parameters - host introspection',
+              '/dev': 'Device files - hardware access',
+              '/boot': 'Boot files - could compromise startup',
+              '/lib': 'System libraries',
+              '/usr': 'User programs',
+              '/bin': 'System binaries',
+              '/sbin': 'System administration binaries',
+          }
+
+          # Docker socket requires special scrutiny
+          DOCKER_SOCKET_MOUNTS = [
+              '/var/run/docker.sock',
+              '/run/docker.sock',
+          ]
+
+          # Dangerous capabilities
+          DANGEROUS_CAPS = {
+              'SYS_ADMIN': 'Near-root privileges - can escape container',
+              'NET_ADMIN': 'Network configuration - can intercept traffic',
+              'SYS_PTRACE': 'Process tracing - can inspect other containers',
+              'DAC_OVERRIDE': 'Bypass file permissions',
+              'SETUID': 'Change user ID',
+              'SETGID': 'Change group ID',
+          }
+
+          # Known malicious image patterns
+          MALICIOUS_PATTERNS = [
+              (r'cryptominer', 'Cryptocurrency miner'),
+              (r'xmrig', 'XMRig cryptocurrency miner'),
+              (r'monero', 'Monero miner'),
+              (r'coinhive', 'Coinhive miner'),
+              (r'botnet', 'Botnet component'),
+              (r'backdoor', 'Backdoor'),
+              (r'rootkit', 'Rootkit'),
+              (r'reverse.?shell', 'Reverse shell'),
+              (r'rat\b', 'Remote Access Trojan'),
+          ]
+
+          # Suspicious environment variable patterns
+          SUSPICIOUS_ENV_PATTERNS = [
+              (r'ATTACKER', 'Attacker reference'),
+              (r'C2_', 'Command & Control reference'),
+              (r'CALLBACK', 'Callback reference'),
+              (r'EXFIL', 'Exfiltration reference'),
+              (r'BEACON', 'Beacon reference'),
+          ]
+
+          for yaml_file in sorted(Path('apps').rglob('app.yaml')):
+              try:
+                  content = yaml_file.read_text()
+                  with open(yaml_file) as f:
+                      data = yaml.safe_load(f)
+
+                  app_id = data.get('id', 'unknown')
+                  docker = data.get('docker', {})
+
+                  # Check for malicious patterns in content
+                  for pattern, desc in MALICIOUS_PATTERNS:
+                      if re.search(pattern, content, re.IGNORECASE):
+                          errors.append(f'{app_id}: Malicious pattern detected: {desc}')
+
+                  # Check image name for suspicious patterns
+                  image = docker.get('image', '')
+                  for pattern, desc in MALICIOUS_PATTERNS:
+                      if re.search(pattern, image, re.IGNORECASE):
+                          errors.append(f'{app_id}: Suspicious image name: {desc}')
+
+                  # Check dangerous volume mounts
+                  for vol in docker.get('volumes', []):
+                      host_path = vol.get('host', '')
+                      mode = vol.get('mode', 'rw')
+
+                      # Normalize path
+                      host_path = host_path.rstrip('/')
+                      if host_path.startswith('${'):
+                          continue  # Variable, can't check
+
+                      # Check Docker socket
+                      if host_path in DOCKER_SOCKET_MOUNTS:
+                          if mode == 'rw':
+                              errors.append(f'{app_id}: Docker socket mounted read-write - can control host Docker')
+                          else:
+                              warnings.append(f'{app_id}: Docker socket mounted - ensure this is necessary')
+                          continue
+
+                      # Check dangerous paths
+                      for dangerous, reason in DANGEROUS_MOUNTS.items():
+                          if host_path == dangerous or (dangerous != '/' and host_path.startswith(dangerous + '/')):
+                              if mode == 'rw':
+                                  errors.append(f'{app_id}: Dangerous writable mount {host_path}: {reason}')
+                              else:
+                                  warnings.append(f'{app_id}: Sensitive mount {host_path} (read-only): {reason}')
+
+                  # Check capabilities
+                  for cap in docker.get('capabilities', []):
+                      if cap in DANGEROUS_CAPS:
+                          warnings.append(f'{app_id}: Dangerous capability {cap}: {DANGEROUS_CAPS[cap]}')
+
+                  # Check privileged mode
+                  if docker.get('privileged'):
+                      errors.append(f'{app_id}: Privileged mode enabled - full host access!')
+
+                  # Check network mode
+                  if docker.get('network_mode') == 'host':
+                      warnings.append(f'{app_id}: Host network mode - can see all host traffic')
+
+                  # Check PID mode
+                  if docker.get('pid_mode') == 'host':
+                      errors.append(f'{app_id}: Host PID mode - can see/signal host processes')
+
+                  # Check suspicious environment variables
+                  for env in docker.get('environment', []):
+                      name = env.get('name', '')
+                      value = env.get('value', '')
+                      for pattern, desc in SUSPICIOUS_ENV_PATTERNS:
+                          if re.search(pattern, name, re.IGNORECASE):
+                              errors.append(f'{app_id}: Suspicious env var {name}: {desc}')
+                          if re.search(pattern, str(value), re.IGNORECASE):
+                              errors.append(f'{app_id}: Suspicious env value in {name}: {desc}')
+
+                  # Check for base64 encoded values (potential obfuscation)
+                  for env in docker.get('environment', []):
+                      value = str(env.get('value', ''))
+                      if len(value) > 50 and re.match(r'^[A-Za-z0-9+/]+=*$', value):
+                          warnings.append(f'{app_id}: Possible base64 encoded value in {env.get("name")} - review manually')
+
+              except Exception as e:
+                  errors.append(f'{yaml_file}: Error: {e}')
+
+          for warning in warnings:
+              print(f'WARNING: {warning}')
+
+          if errors:
+              print('')
+              for error in errors:
+                  print(f'ERROR: {error}')
+              print('')
+              print('SECURITY SCAN FAILED - Potential malware detected!')
+              sys.exit(1)
+          else:
+              print('')
+              print('Malicious pattern scan passed!')
+          EOF
+
+  verify-image-source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify image sources match repositories
+        run: |
+          python3 << 'EOF'
+          import yaml
+          import sys
+          import re
+          from pathlib import Path
+
+          errors = []
+          warnings = []
+
+          # Map of known official images to their repos
+          OFFICIAL_IMAGES = {
+              'jellyfin/jellyfin': 'https://github.com/jellyfin/jellyfin',
+              'pihole/pihole': 'https://github.com/pi-hole/pi-hole',
+              'n8nio/n8n': 'https://github.com/n8n-io/n8n',
+              'portainer/portainer-ce': 'https://github.com/portainer/portainer',
+              'linuxserver/': 'https://github.com/linuxserver/',
+              'grafana/grafana': 'https://github.com/grafana/grafana',
+              'prom/prometheus': 'https://github.com/prometheus/prometheus',
+          }
+
+          for yaml_file in sorted(Path('apps').rglob('app.yaml')):
+              try:
+                  with open(yaml_file) as f:
+                      data = yaml.safe_load(f)
+
+                  app_id = data.get('id', 'unknown')
+                  image = data.get('docker', {}).get('image', '')
+                  repo = data.get('repository', '')
+
+                  # Extract image name without tag
+                  image_name = image.split(':')[0] if ':' in image else image
+
+                  # Check if image matches any known official mapping
+                  matched = False
+                  for img_prefix, repo_prefix in OFFICIAL_IMAGES.items():
+                      if image_name.startswith(img_prefix):
+                          if not repo.startswith(repo_prefix):
+                              warnings.append(f'{app_id}: Image {image_name} typically comes from {repo_prefix}, but repo is {repo}')
+                          matched = True
+                          break
+
+                  if not matched:
+                      # For unknown images, just warn for review
+                      print(f'INFO: {app_id}: Image {image_name} - manual verification recommended')
+
+              except Exception as e:
+                  errors.append(f'{yaml_file}: Error: {e}')
+
+          for warning in warnings:
+              print(f'WARNING: {warning}')
+
+          if errors:
+              for error in errors:
+                  print(f'ERROR: {error}')
+              sys.exit(1)
+          else:
+              print('')
+              print('Image source verification completed!')
+          EOF

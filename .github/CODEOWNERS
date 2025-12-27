@@ -1,6 +1,23 @@
+# CODEOWNERS - All changes require maintainer review
+#
+# This ensures no malicious apps can be merged without explicit approval
+
 # Default owners for everything
 * @cbabil
+
+# All app definitions require security review
+apps/ @cbabil
+
+# Schema changes require owner review
+schemas/ @cbabil
 
 # Security-related files require owner review
 SECURITY.md @cbabil
 .github/workflows/ @cbabil
+.github/CODEOWNERS @cbabil
+
+# Manifest changes require review (tracks all apps)
+manifest.json @cbabil
+
+# Scripts that could be executed
+scripts/ @cbabil
