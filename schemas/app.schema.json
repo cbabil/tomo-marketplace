@@ -76,7 +76,7 @@
       "properties": {
         "image": {
           "type": "string",
-          "pattern": "^[a-z0-9][a-z0-9._/-]*:[a-z0-9][a-z0-9._-]*$",
+          "pattern": "^(docker\\.io/|ghcr\\.io/|lscr\\.io/|quay\\.io/|gcr\\.io/|mcr\\.microsoft\\.com/)?[a-z0-9][a-z0-9._/-]*:[a-z0-9][a-z0-9._-]+$",
           "not": {
             "anyOf": [
               { "pattern": ":latest$" },
@@ -88,7 +88,7 @@
               { "pattern": ":main$" }
             ]
           },
-          "description": "Docker image with pinned version (no latest/dev/nightly/edge/unstable/master/main)"
+          "description": "Docker image from trusted registry with pinned version"
         },
         "ports": {
           "type": "array",
