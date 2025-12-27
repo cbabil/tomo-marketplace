@@ -1,7 +1,7 @@
 id: uptime-kuma
 name: Uptime Kuma
 description: Self-hosted monitoring tool for tracking website and service uptime status.
-version: "1.0.0"
+version: "1.1.0"
 category: monitoring
 author: homelab
 tags:

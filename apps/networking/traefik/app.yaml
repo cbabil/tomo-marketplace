@@ -1,7 +1,7 @@
 id: traefik
 name: Traefik
 description: Modern reverse proxy and load balancer with automatic HTTPS and service discovery.
-version: "1.0.0"
+version: "1.1.0"
 category: networking
 author: homelab
 tags:
