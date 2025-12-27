@@ -1,7 +1,7 @@
 id: authelia
 name: Authelia
 description: Authentication and authorization server providing two-factor and SSO for applications.
-version: "1.0.0"
+version: "1.1.0"
 category: security
 author: homelab
 tags:
