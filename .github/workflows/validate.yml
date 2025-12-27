@@ -30,7 +30,7 @@ jobs:
 
           errors = []
           required_fields = ['id', 'name', 'description', 'version', 'category', 'docker']
-          valid_categories = ['media', 'networking', 'monitoring', 'security', 'storage', 'utility']
+          valid_categories = ['automation', 'media', 'monitoring', 'networking', 'security', 'storage', 'utility']
 
           for yaml_file in Path('apps').rglob('app.yaml'):
               try:
