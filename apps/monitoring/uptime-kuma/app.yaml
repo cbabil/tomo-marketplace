@@ -3,6 +3,7 @@ name: Uptime Kuma
 description: Self-hosted monitoring tool for tracking website and service uptime status.
 version: "1.0.0"
 category: monitoring
+author: homelab
 tags:
   - uptime
   - status-page
@@ -37,6 +38,9 @@ requirements:
   storage: "1GB"
 
 featured: false
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /

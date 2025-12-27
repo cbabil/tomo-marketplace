@@ -3,6 +3,7 @@ name: Jellyfin
 description: Free and open-source media server for streaming movies, TV shows, and music.
 version: "1.0.0"
 category: media
+author: homelab
 tags:
   - streaming
   - media-server
@@ -53,6 +54,9 @@ requirements:
   storage: "10GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /health

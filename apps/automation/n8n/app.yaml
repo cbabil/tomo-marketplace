@@ -3,6 +3,7 @@ name: n8n
 description: Workflow automation tool for connecting apps and automating tasks.
 version: "1.0.0"
 category: automation
+author: homelab
 tags:
   - automation
   - workflow
@@ -45,6 +46,9 @@ requirements:
   storage: "2GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /healthz

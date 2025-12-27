@@ -3,6 +3,7 @@ name: Pi-hole
 description: Network-wide ad blocking via your own DNS server.
 version: "1.0.0"
 category: networking
+author: homelab
 tags:
   - dns
   - ad-blocking
@@ -53,6 +54,9 @@ requirements:
   storage: "1GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /admin

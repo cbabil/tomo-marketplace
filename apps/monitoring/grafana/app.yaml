@@ -3,6 +3,7 @@ name: Grafana
 description: Open-source analytics and monitoring platform for visualizing metrics and logs.
 version: "1.0.0"
 category: monitoring
+author: homelab
 tags:
   - metrics
   - visualization
@@ -49,6 +50,9 @@ requirements:
   storage: "1GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /api/health
