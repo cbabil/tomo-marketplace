@@ -3,6 +3,7 @@ name: Netdata
 description: Real-time performance and health monitoring for systems and applications.
 version: "1.0.0"
 category: monitoring
+author: homelab
 tags:
   - real-time
   - performance
@@ -41,6 +42,9 @@ requirements:
   storage: "2GB"
 
 featured: false
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /api/v1/info

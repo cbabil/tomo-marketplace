@@ -38,6 +38,12 @@
       "enum": ["automation", "media", "monitoring", "networking", "security", "storage", "utility"],
       "description": "App category"
     },
+    "author": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 50,
+      "description": "Author or organization name"
+    },
     "tags": {
       "type": "array",
       "items": {

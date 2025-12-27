@@ -3,6 +3,7 @@ name: Portainer CE
 description: Lightweight container management UI for Docker and Kubernetes.
 version: "1.0.0"
 category: utility
+author: homelab
 tags:
   - docker
   - containers
@@ -45,6 +46,9 @@ requirements:
   storage: "1GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /api/status

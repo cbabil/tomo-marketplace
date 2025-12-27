@@ -3,6 +3,7 @@ name: Nextcloud
 description: Self-hosted productivity platform for file sync, sharing, and collaboration.
 version: "1.0.0"
 category: storage
+author: homelab
 tags:
   - file-sync
   - collaboration
@@ -57,6 +58,9 @@ requirements:
   storage: "10GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /status.php

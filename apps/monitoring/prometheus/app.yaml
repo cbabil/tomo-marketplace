@@ -3,6 +3,7 @@ name: Prometheus
 description: Open-source monitoring and alerting toolkit for collecting and querying metrics.
 version: "1.0.0"
 category: monitoring
+author: homelab
 tags:
   - metrics
   - alerting
@@ -41,6 +42,9 @@ requirements:
   storage: "10GB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /-/healthy

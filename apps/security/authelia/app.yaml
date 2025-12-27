@@ -3,6 +3,7 @@ name: Authelia
 description: Authentication and authorization server providing two-factor and SSO for applications.
 version: "1.0.0"
 category: security
+author: homelab
 tags:
   - authentication
   - sso
@@ -49,6 +50,9 @@ requirements:
   storage: "100MB"
 
 featured: true
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /api/health

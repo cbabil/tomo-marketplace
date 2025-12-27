@@ -3,6 +3,7 @@ name: Heimdall
 description: Application dashboard and launcher for organizing your self-hosted services.
 version: "1.0.0"
 category: utility
+author: homelab
 tags:
   - dashboard
   - launcher
@@ -49,6 +50,9 @@ requirements:
   storage: "500MB"
 
 featured: false
+
+maintainers:
+  - "@cbabil"
 
 healthcheck:
   endpoint: /
