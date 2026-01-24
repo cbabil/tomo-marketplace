@@ -97,6 +97,9 @@ jobs:
               if name and value:
                   env_args += f' -e {name}={value}'
 
+          # Get command if specified
+          command = docker.get('command', '')
+
           # Get healthcheck config
           healthcheck = data.get('healthcheck', {})
           health_endpoint = healthcheck.get('endpoint', '/health')
@@ -111,6 +114,7 @@ jobs:
               f.write(f'health_endpoint={health_endpoint}\n')
               f.write(f'health_port={health_port}\n')
               f.write(f'health_protocol={health_protocol}\n')
+              f.write(f'command={command}\n')
           EOF
 
       - name: Pull Docker image
@@ -125,11 +129,21 @@ jobs:
           echo "container_name=$CONTAINER_NAME" >> $GITHUB_OUTPUT
 
           echo "Starting container..."
-          docker run -d \
-            --name "$CONTAINER_NAME" \
-            ${{ steps.config.outputs.port_args }} \
-            ${{ steps.config.outputs.env_args }} \
-            ${{ steps.config.outputs.image }}
+          COMMAND="${{ steps.config.outputs.command }}"
+          if [ -n "$COMMAND" ]; then
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              ${{ steps.config.outputs.port_args }} \
+              ${{ steps.config.outputs.env_args }} \
+              ${{ steps.config.outputs.image }} \
+              $COMMAND
+          else
+            docker run -d \
+              --name "$CONTAINER_NAME" \
+              ${{ steps.config.outputs.port_args }} \
+              ${{ steps.config.outputs.env_args }} \
+              ${{ steps.config.outputs.image }}
+          fi
 
           # Wait for container to start
           sleep 10

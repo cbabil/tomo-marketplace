@@ -96,6 +96,11 @@
           },
           "description": "Docker image from trusted registry with pinned version"
         },
+        "command": {
+          "type": "string",
+          "maxLength": 500,
+          "description": "Command to run in the container (overrides default CMD)"
+        },
         "ports": {
           "type": "array",
           "items": {
